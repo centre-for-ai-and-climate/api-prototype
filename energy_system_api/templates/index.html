@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% load cache %}
+
+{% block content %}
+
+    <h1>Energy System API</h1>
+    <p>Currently containing data for:</p>
+    <ul>
+        <li><strong>{{ total_consumption|intword }} smart meter readings</strong></li>
+        <li>aggregated at the resolution of <strong>{{ total_feeders|intcomma }} low-voltage feeders</strong></li>
+        <li>and linked to <strong>{{ linked_epcs|intword }} Energy Performance Certificates</strong></li>
+    </ul>
+    <div id="map" style="height: 60vh; width=100vw; z-index:0;"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    var map = L.map('map');
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+    }).addTo(map);
+    // Somewhere in a field in Hampshire (which has some data)
+    map.setView([50.9105, -1.92], 15)
+
+    var epcsLayer = L.layerGroup().addTo(map);
+    var areasLayer = L.layerGroup().addTo(map);
+
+    updateData(areasLayer, epcsLayer);
+    map.on('moveend', function() { updateData(areasLayer, epcsLayer); });
+
+    function updateData(areasLayer, epcsLayer) {
+        // Show areas always
+        bounds = map.getBounds().toBBoxString();
+        fetch('/areas.geojson?bbox=' + bounds)
+            .then(function(response) {
+                if (response.ok) {
+                    return response.json();
+                }
+            })
+            .then(function(data) {
+                areasLayer.clearLayers();
+                var newLayer = L.geoJSON(data, {
+                    onEachFeature: function (feature, layer) {
+                        layer.bindPopup("<strong>" + feature.properties.name + "</strong><br><a href=\"/areas/" + feature.id + "\">View details</a>");
+                    }
+                });
+                areasLayer.addLayer(newLayer);
+            });
+        
+        // Only show EPCs at higher zoom levels
+        if(map.getZoom() < 12) {
+            epcsLayer.clearLayers();
+        } else {
+            fetch('/epcs.geojson?bbox=' + bounds)
+                .then(function(response) {
+                    if (response.ok) {
+                        return response.json();
+                    }
+                })
+                .then(function(data) {
+                    epcsLayer.clearLayers();
+                    var newLayer = L.geoJSON(data, {
+                        pointToLayer: function (feature, latlng) {
+                            return L.circleMarker(latlng, {
+                                radius: 5,
+                                fillColor: "#ff7800",
+                                color: "#000",
+                                weight: 1,
+                                opacity: 1,
+                                fillOpacity: 0.8
+                            });
+                        }
+                    });
+                    epcsLayer.addLayer(newLayer);
+                });
+        }
+    }
+</script>
+{% endblock %}

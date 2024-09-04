@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block content %}
+    <h1>{{ area.name }}</h1>
+
+    <div id="map" style="height: 400px; width: 600px;"></div>
+
+    <h2>Energy Consumption</h2>
+    <p><strong>Time range:</strong> {{ consumption.earliest }} - {{ consumption.latest }}</p>
+    <p><strong>Number of meters:</strong> {{ consumption.meters|floatformat:0|intcomma }}</p>
+    <p><strong>Number of records:</strong> {{ consumption.records|intcomma }}</p>
+
+    <h2>Building Performance</h2>
+    {% if epcs is not None and epcs.records == 0 %}
+        <p>No EPC data available</p>
+    {% else %}
+        <p><strong>Time range:</strong> {{ epcs.earliest }} - {{ epcs.latest }}</p>
+        <p><strong>Average floor area:</strong> {{ epcs.avg_floor_area|floatformat:0|intcomma }} square meters</p>
+        <p><strong>Number of records:</strong> {{ epcs.records|intcomma }}</p>
+    {% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+    var map = L.map('map');
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+    }).addTo(map);
+    var data = {{ boundary|safe }}; 
+    var jsonLayer = L.geoJSON(data);
+    jsonLayer.addTo(map);
+    map.fitBounds(jsonLayer.getBounds());
+
+    {% comment %} var epcLayer = L.layerGroup().addTo(map);
+    fetch('/epcs.geojson?bbox=' + jsonLayer.getBounds().toBBoxString())
+        .then(function(response) {
+            if (response.ok) {
+                return response.json();
+            }
+        })
+        .then(function(data) {
+            epcLayer.clearLayers();
+            epcLayer.addLayer(L.geoJSON(data));
+        }); {% endcomment %}
+</script>
+{% endblock %}
